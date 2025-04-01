@@ -5,6 +5,7 @@
  */
 
 #include "mm.h"
+#include "os-mm.h"
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -95,11 +96,22 @@ int vmap_page_range(struct pcb_t *caller,           // process call
   //ret_rg->rg_start = ...
   //ret_rg->vmaid = ...
   */
+  ret_rg->rg_start = addr;
+  ret_rg->rg_end = addr + pgnum * PAGING_PAGESZ - 1; // end inclusively -> -1
 
   /* TODO map range of frame to address space
    *      [addr to addr + pgnum*PAGING_PAGESZ
    *      in page table caller->mm->pgd[]
    */
+  struct framephy_struct* fpit = frames;
+  for (pgit = 0; pgit < pgnum; pgit++) {
+    if (fpit == NULL) break; // runout of frame
+    int pgn_dest = PAGING_PGN(addr) + pgit;
+    caller->mm->pgd[pgn_dest] = PAGING_PTE_DIRTY_MASK;
+    SETBIT(caller->mm->pgd[pgn_dest], PAGING_PTE_PRESENT_MASK);
+    fpit = fpit->fp_next;
+    enlist_pgn_node(&caller->mm->fifo_pgn, pgn_dest);
+  }
 
   /* Tracking for later page replacement activities (if needed)
    * Enqueue new usage page */
