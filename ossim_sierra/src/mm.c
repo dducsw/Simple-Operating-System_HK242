@@ -8,6 +8,7 @@
 #include "os-mm.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <sys/types.h>
 
 /*
  * init_pte - Initialize PTE entry
@@ -107,7 +108,8 @@ int vmap_page_range(struct pcb_t *caller,           // process call
   for (pgit = 0; pgit < pgnum; pgit++) {
     if (fpit == NULL) break; // runout of frame
     int pgn_dest = PAGING_PGN(addr) + pgit;
-    caller->mm->pgd[pgn_dest] = PAGING_PTE_DIRTY_MASK;
+    caller->mm->pgd[pgn_dest] = 0;
+    caller->mm->pgd[pgn_dest] |= ((u_int64_t)PAGING_ADDR_PGN_HIBIT << 32) | PAGING_ADDR_PGN_LOBIT;
     SETBIT(caller->mm->pgd[pgn_dest], PAGING_PTE_PRESENT_MASK);
     fpit = fpit->fp_next;
     enlist_pgn_node(&caller->mm->fifo_pgn, pgn_dest);
