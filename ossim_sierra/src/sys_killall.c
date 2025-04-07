@@ -12,6 +12,7 @@
 #include "syscall.h"
 #include "stdio.h"
 #include "libmem.h"
+#include "queue.h"
 
 int __sys_killall(struct pcb_t *caller, struct sc_regs* regs)
 {
@@ -43,6 +44,48 @@ int __sys_killall(struct pcb_t *caller, struct sc_regs* regs)
      *       all processes with given
      *        name in var proc_name
      */
+    pthread_mutex_lock(&queue_lock);
+    struct pcb_t *proc = dequeue(&running_list);
+    while (proc != NULL){
+        if (strcmp(proc->name, proc_name) == 0){
+            printf("Terminating process %s with pid %d\n", proc->name, proc->pid);
+            free(proc);
+        } else {
+            enqueue(&running_list, proc);
+        }
+        proc = dequeue(&running_list);
+    }
+    pthread_mutex_unlock(&queue_lock);
+
+#ifdef MLQ_SCHED
+    for (int prio = 0; prio < MAX_PRIO; prio++) {
+        pthread_mutex_lock(&queue_lock);
+        proc = dequeue(&mlq_ready_queue[prio]);
+        while (proc != NULL) {
+            if (strcmp(proc->name, proc_name) == 0) {
+                printf("Terminating process %s with PID %d\n", proc->name, proc->pid);
+                free(proc); 
+            } else {
+                enqueue(&mlq_ready_queue[prio], proc); 
+            }
+            proc = dequeue(&mlq_ready_queue[prio]);
+        }
+        pthread_mutex_unlock(&queue_lock);
+    }
+#else
+    pthread_mutex_lock(&queue_lock);
+    proc = dequeue(&ready_queue);
+    while (proc != NULL) {
+        if (strcmp(proc->name, proc_name) == 0) {
+            printf("Terminating process %s with PID %d\n", proc->name, proc->pid);
+            free(proc); 
+        } else {
+            enqueue(&ready_queue, proc);
+        }
+        proc = dequeue(&ready_queue);
+    }
+    pthread_mutex_unlock(&queue_lock);
+#endif
 
     return 0; 
 }
