@@ -6,6 +6,7 @@
 
 #include "mm.h"
 #include "os-mm.h"
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -86,7 +87,7 @@ int vmap_page_range(
     struct framephy_struct *frames, // list of the mapped frames
     struct vm_rg_struct *ret_rg)    // return mapped region, the real mapped fp
 {                                   // no guarantee all given pages are mapped
-  // struct framephy_struct *fpit;
+  struct framephy_struct *fpit = frames;
   int pgit = 0;
   int pgn = PAGING_PGN(addr);
 
@@ -102,17 +103,16 @@ int vmap_page_range(
    *      [addr to addr + pgnum*PAGING_PAGESZ
    *      in page table caller->mm->pgd[]
    */
-  struct framephy_struct *fpit = frames;
   for (pgit = 0; pgit < pgnum; pgit++) {
     if (fpit == NULL)
       break; // runout of frame
+    
     int pgn_dest = PAGING_PGN(addr) + pgit;
-    caller->mm->pgd[pgn_dest] = 0;
-    caller->mm->pgd[pgn_dest] |=
-        ((u_int64_t)PAGING_ADDR_PGN_HIBIT << 32) | PAGING_ADDR_PGN_LOBIT;
-    SETBIT(caller->mm->pgd[pgn_dest], PAGING_PTE_PRESENT_MASK);
+    uint32_t pte = 0;
+    pte |= PAGING_PTE_PRESENT_MASK;
+    pte |= (fpit->fpn << PAGING_PTE_FPN_LOBIT) & PAGING_PTE_FPN_MASK;
+    caller->mm->pgd[pgn_dest] = pte;
     fpit = fpit->fp_next;
-    enlist_pgn_node(&caller->mm->fifo_pgn, pgn_dest);
   }
 
   /* Tracking for later page replacement activities (if needed)

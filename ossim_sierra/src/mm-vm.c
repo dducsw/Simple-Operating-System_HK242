@@ -85,7 +85,7 @@ int validate_overlap_vm_area(struct pcb_t *caller, int vmaid, int vmastart,
   /* TODO validate the planned memory area is not overlapped */
   while (vma != NULL) {
     if (vma->vm_id != vmaid) {
-      if (vmaend <= vma->vm_start || vmastart >= vma->vm_end) {
+      if (vmaend > vma->vm_start && vmastart < vma->vm_end) {
         return -1; // memory area overlapped
       }
     }
@@ -121,9 +121,13 @@ int inc_vma_limit(struct pcb_t *caller, int vmaid, int inc_sz) {
   cur_vma->vm_end = area->rg_end;
 
   if (vm_map_ram(caller, area->rg_start, area->rg_end, old_end, incnumpage,
-                 newrg) < 0)
+                 newrg) < 0) {
+    free(newrg);
+    free(area);
     return -1; /* Map the memory to MEMRAM */
+  }
 
+  free(area);
   return 0;
 }
 
