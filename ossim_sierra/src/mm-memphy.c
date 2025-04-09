@@ -160,9 +160,50 @@ int MEMPHY_get_freefp(struct memphy_struct *mp, int *retfpn)
 
 int MEMPHY_dump(struct memphy_struct *mp)
 {
-  /*TODO dump memphy contnt mp->storage
-   *     for tracing the memory content
+  /* Dump memphy content mp->storage
+   * for tracing the memory content
    */
+   if (mp == NULL || mp->storage == NULL || mp->maxsz <= 0) {
+      printf("Invalid memory\n");
+      return -1;
+   }
+
+   // Print memory content to console
+   printf("Memphy content:\n");
+   for (int i = 0; i < mp->maxsz; i++) {
+      BYTE data;
+      MEMPHY_read(mp, i, &data);
+      if (data != 0) {
+         printf("Addr 0x%08x: %d\n", i, (uint32_t)data);
+      }
+   }
+
+   #ifdef MEM_TO_FILE
+   // Write memory content to a file
+   static int numFile = 0;
+   FILE *ptr;
+   char file[100];
+   snprintf(file, sizeof(file), "my_output/output%d.txt", numFile);
+
+   ptr = fopen(file, "w");
+   if (ptr == NULL) {
+      printf("Failed to open file: %s\n", file);
+      return -1;
+   }
+
+   fprintf(ptr, "Memphy content:\n");
+   for (int i = 0; i < mp->maxsz; i++) {
+      BYTE data;
+      MEMPHY_read(mp, i, &data);
+      if (data != 0) {
+         fprintf(ptr, "Addr 0x%08x: %d\n", i, (uint32_t)data);
+      }
+   }
+
+   numFile++;
+   fclose(ptr);
+   #endif
+
    return 0;
 }
 
