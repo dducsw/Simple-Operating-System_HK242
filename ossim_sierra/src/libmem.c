@@ -22,6 +22,8 @@
 #include <stdio.h>
 #include <pthread.h>
 
+int __sys_memmap(struct pcb_t *caller, struct sc_regs *regs);
+
 static pthread_mutex_t mmvm_lock = PTHREAD_MUTEX_INITIALIZER;
 
 /*enlist_vm_freerg_list - add new rg to freerg_list
@@ -71,7 +73,7 @@ int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr
   // pthread_mutex is used to avoid race conditions
   pthread_mutex_lock(&mmvm_lock); // Lock the mutex to ensure thread safety
   struct vm_rg_struct rgnode; 
-  rgnode.vmaid = vmaid; // commit the vmaid 
+  // rgnode.vmaid = vmaid; // commit the vmaid 
 
   if (get_free_vmrg_area(caller, vmaid, size, &rgnode) == 0)
   {
@@ -144,10 +146,10 @@ int __free(struct pcb_t *caller, int vmaid, int rgid)
   struct vm_rg_struct *rgnode = get_symrg_byid(caller->mm, rgid);
 
   /* TODO: Manage the collect freed region to freerg_list */
-  struct vm_rg_struct freerg = malloc(sizeof(struct vm_rg_struct));
-  freerg.rg_start = rgnode->rg_start;
-  freerg.rg_end = rgnode->rg_end;
-  freerg.rg_next = NULL;
+  struct vm_rg_struct *freerg = (struct vm_rg_struct *)malloc(sizeof(struct vm_rg_struct));
+  freerg->rg_start = rgnode->rg_start;
+  freerg->rg_end = rgnode->rg_end;
+  freerg->rg_next = NULL;
 
   rgnode->rg_start = 0;
   rgnode->rg_end = 0;
@@ -273,19 +275,19 @@ int pg_getval(struct mm_struct *mm, int addr, BYTE *data, struct pcb_t *caller)
    *  SYSCALL 17 sys_memmap with SYSMEM_IO_READ
    */
   int phyaddr = (fpn << PAGING_ADDR_FPN_LOBIT) + off;
-  BYTE value;
+  
   // MEMPHY_read(caller->mram, phyaddr, data);
   struct sc_regs regs;
   regs.a1 = SYSMEM_IO_READ;
   regs.a2 = phyaddr;
-  regs.a3 = value;
+  regs.a3 = 0;
 
   /* SYSCALL 17 sys_memmap */
   
-  __sys_memmap(caller, &reg, &value)
+  __sys_memmap(caller, &regs);
   
   // Update data
-  *data = value;
+  *data = (BYTE)regs.a3;
 
   return 0;
 }
@@ -318,7 +320,7 @@ int pg_setval(struct mm_struct *mm, int addr, BYTE value, struct pcb_t *caller)
   regs.a3 = value;
 
   /* SYSCALL 17 sys_memmap */
-  __sys_memmap(caller, &reg, &value);
+  __sys_memmap(caller, &regs);
 
   // Update data
   // data = (BYTE) 
@@ -358,7 +360,7 @@ int libread(
   int val = __read(proc, 0, source, offset, &data);
 
   /* TODO update result of reading action*/
-  destination = (uint32_t)data; //
+  *destination = (uint32_t)data; //
 #ifdef IODUMP
   printf("read region=%d offset=%d value=%d\n", source, offset, data);
 #ifdef PAGETBL_DUMP
