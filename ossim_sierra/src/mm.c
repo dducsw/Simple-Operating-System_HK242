@@ -356,6 +356,8 @@ int print_list_pgn(struct pgn_t *ip) {
 }
 
 int print_pgtbl(struct pcb_t *caller, uint32_t start, uint32_t end) {
+  if (caller == NULL || caller->mm == NULL) return -1;
+
   int pgn_start, pgn_end;
   int pgit;
 

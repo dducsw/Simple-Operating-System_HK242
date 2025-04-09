@@ -71,7 +71,8 @@ struct vm_rg_struct *get_symrg_byid(struct mm_struct *mm, int rgid)
 int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr)
 {
   // pthread_mutex is used to avoid race conditions
-  pthread_mutex_lock(&mmvm_lock); // Lock the mutex to ensure thread safety
+  // pthread_mutex_lock(&mmvm_lock); // Lock the mutex to ensure thread safety
+  if (caller == NULL) return -1;
   struct vm_rg_struct rgnode; 
   // rgnode.vmaid = vmaid; // commit the vmaid 
 
@@ -85,14 +86,12 @@ int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr
     pthread_mutex_unlock(&mmvm_lock);
     return 0;
   }
-
   /* TODO get_free_vmrg_area FAILED handle the region management (Fig.6)*/
   struct vm_area_struct *cur_vma = get_vma_by_num(caller->mm, vmaid); 
   if (cur_vma == NULL) { /* TODO retrive current vma if needed, current comment out due to compiler redundant warning*/
     pthread_mutex_unlock(&mmvm_lock);
     return -1;
   }
-
   /*Attempt to increate limit to get space */
   int inc_sz = PAGING_PAGE_ALIGNSZ(size);
   // int inc_limit_ret;
@@ -139,11 +138,13 @@ int __free(struct pcb_t *caller, int vmaid, int rgid)
   // Dummy initialization for avoding compiler dummay warning
   // in incompleted TODO code rgnode will overwrite through implementing
   // the manipulation of rgid later
+  if (caller == NULL || caller->mm == NULL) return -1;
 
   if(rgid < 0 || rgid > PAGING_MAX_SYMTBL_SZ)
     return -1;
   // Note: Consider the malloc to rgnode
   struct vm_rg_struct *rgnode = get_symrg_byid(caller->mm, rgid);
+  if (rgnode == NULL || rgnode->rg_start == 0) return -1;
 
   /* TODO: Manage the collect freed region to freerg_list */
   struct vm_rg_struct *freerg = (struct vm_rg_struct *)malloc(sizeof(struct vm_rg_struct));
@@ -485,10 +486,10 @@ int find_victim_page(struct mm_struct *mm, int *retpgn)
 int get_free_vmrg_area(struct pcb_t *caller, int vmaid, int size, struct vm_rg_struct *newrg)
 {
   // get the vm area 
+  if (caller->mm == NULL) return -1;
   struct vm_area_struct *cur_vma = get_vma_by_num(caller->mm, vmaid);
-
   struct vm_rg_struct *rgit = cur_vma->vm_freerg_list;
-
+  
   if (rgit == NULL)
     return -1; // if no free region available
 
