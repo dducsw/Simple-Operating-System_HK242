@@ -112,12 +112,13 @@ int vmap_page_range(
     pte |= PAGING_PTE_PRESENT_MASK;
     pte |= (fpit->fpn << PAGING_PTE_FPN_LOBIT) & PAGING_PTE_FPN_MASK;
     caller->mm->pgd[pgn_dest] = pte;
+    enlist_pgn_node(&caller->mm->fifo_pgn, pgn + pgit); // dd
     fpit = fpit->fp_next;
   }
 
   /* Tracking for later page replacement activities (if needed)
    * Enqueue new usage page */
-  enlist_pgn_node(&caller->mm->fifo_pgn, pgn + pgit);
+  
 
   return 0;
 }
@@ -132,14 +133,14 @@ int vmap_page_range(
 int alloc_pages_range(struct pcb_t *caller, int req_pgnum,
                       struct framephy_struct **frm_lst) {
   int pgit, fpn;
-  struct framephy_struct *newfp_str = NULL;
+  struct framephy_struct *newfp_str = NULL, *last = NULL;
 
   /* TODO: allocate the page
   //caller-> ...
   //frm_lst-> ...
   */
   *frm_lst = NULL;
-
+          
   for (pgit = 0; pgit < req_pgnum; pgit++) {
     /* TODO: allocate the page
      */
@@ -149,7 +150,16 @@ int alloc_pages_range(struct pcb_t *caller, int req_pgnum,
 
       newfp_str->fpn = fpn;
       newfp_str->fp_next = *frm_lst;
-      *frm_lst = newfp_str;
+      if (*frm_lst == NULL) {
+        *frm_lst = newfp_str;
+      } else {
+        last->fp_next = newfp_str;
+      }
+      last = newfp_str;
+
+      // Add the frame to the used frame list
+      newfp_str->fp_next = caller->mram->used_fp_list;
+      caller->mram->used_fp_list = newfp_str;
     } else { // TODO: ERROR CODE of obtaining somes but not enough frames
       perror("Not enough frames to obtain!");
 
@@ -287,6 +297,23 @@ int enlist_pgn_node(struct pgn_t **plist, int pgn) {
   *plist = pnode;
 
   return 0;
+  // struct pgn_t *pnode = malloc(sizeof(struct pgn_t));
+  //   pnode->pgn = pgn;
+  //   pnode->pg_next = NULL;
+
+  //   if (*plist == NULL) {
+  //       // If the list is empty, set the new node as the head
+  //       *plist = pnode;
+  //   } else {
+  //       // Traverse to the end of the list and append the new node
+  //       struct pgn_t *current = *plist;
+  //       while (current->pg_next != NULL) {
+  //           current = current->pg_next;
+  //       }
+  //       current->pg_next = pnode;
+  //   }
+
+  //   return 0;
 }
 
 int print_list_fp(struct framephy_struct *ifp) {

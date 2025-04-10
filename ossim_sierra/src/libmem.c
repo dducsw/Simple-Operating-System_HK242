@@ -71,7 +71,6 @@ struct vm_rg_struct *get_symrg_byid(struct mm_struct *mm, int rgid)
 int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr)
 {
   // pthread_mutex is used to avoid race conditions
-  // pthread_mutex_lock(&mmvm_lock); // Lock the mutex to ensure thread safety
   if (caller == NULL) return -1;
   struct vm_rg_struct rgnode; 
   // rgnode.vmaid = vmaid; // commit the vmaid 
@@ -82,7 +81,6 @@ int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr
     caller->mm->symrgtbl[rgid].rg_end = rgnode.rg_end;
  
     *alloc_addr = rgnode.rg_start;
-
     pthread_mutex_unlock(&mmvm_lock);
     return 0;
   }
@@ -116,8 +114,16 @@ int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr
   *alloc_addr = old_sbrk;
 
   // Update sbrk
-  cur_vma->sbrk += inc_sz;
+  cur_vma->sbrk = old_sbrk + inc_sz;
 
+  if (old_sbrk + size < cur_vma->sbrk) {
+    struct vm_rg_struct *new_free_region = malloc(sizeof(struct vm_rg_struct));
+    new_free_region->rg_start = old_sbrk + size;
+    new_free_region->rg_end = cur_vma->sbrk;
+    new_free_region->rg_next = cur_vma->vm_freerg_list;
+    cur_vma->vm_freerg_list = new_free_region;
+  }
+  
   pthread_mutex_unlock(&mmvm_lock);
 
   return 0;
