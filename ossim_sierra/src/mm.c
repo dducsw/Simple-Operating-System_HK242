@@ -106,7 +106,7 @@ int vmap_page_range(
   for (pgit = 0; pgit < pgnum; pgit++) {
     if (fpit == NULL)
       break; // runout of frame
-    
+
     int pgn_dest = PAGING_PGN(addr) + pgit;
     uint32_t pte = 0;
     pte |= PAGING_PTE_PRESENT_MASK;
@@ -144,12 +144,15 @@ int alloc_pages_range(struct pcb_t *caller, int req_pgnum,
     /* TODO: allocate the page
      */
     if (MEMPHY_get_freefp(caller->mram, &fpn) == 0) {
+
       newfp_str =
           (struct framephy_struct *)malloc(sizeof(struct framephy_struct));
 
       newfp_str->fpn = fpn;
       newfp_str->fp_next = *frm_lst;
       *frm_lst = newfp_str;
+
+      caller->mram->used_fp_list[fpn] = *newfp_str; // Mark used framephy_struct
     } else { // TODO: ERROR CODE of obtaining somes but not enough frames
       perror("Not enough frames to obtain!");
 
