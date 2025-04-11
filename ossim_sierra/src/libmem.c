@@ -179,7 +179,16 @@ int liballoc(struct pcb_t *proc, uint32_t size, uint32_t reg_index)
   int addr;
 
   /* By default using vmaid = 0 */
-  return __alloc(proc, 0, reg_index, size, &addr);
+  int result = __alloc(proc, 0, reg_index, size, &addr);
+
+  printf("===== PHYSICAL MEMORY AFTER ALLOCATION =====\n");
+  printf("PID=%d - Region=%d - Address=%08x - Size=%d byte\n", proc->pid, reg_index, addr, size);
+  
+  print_pgtbl(proc, 0, 1024);
+  
+  printf("================================================================\n");
+  
+  return result;
 }
 
 /*libfree - PAGING-based free a region memory
@@ -193,7 +202,18 @@ int libfree(struct pcb_t *proc, uint32_t reg_index)
   /* TODO Implement free region */
 
   /* By default using vmaid = 0 */
-  return __free(proc, 0, reg_index);
+  
+  printf("===== PHYSICAL MEMORY AFTER DEALLOCATION =====\n");
+  printf("PID=%d - Region=%d\n", proc->pid, reg_index);
+  
+  int result = __free(proc, 0, reg_index);
+  
+  
+  print_pgtbl(proc, 0, 1024);
+  
+  printf("================================================================\n");
+  
+  return result;
 }
 
 /*pg_getpage - get the page in ram
@@ -363,6 +383,7 @@ int libread(
     uint32_t offset,    // Source address = [source] + [offset]
     uint32_t* destination)
 {
+  printf("===== PHYSICAL MEMORY AFTER READING =====\n");
   BYTE data;
   int val = __read(proc, 0, source, offset, &data);
 
@@ -407,6 +428,9 @@ int libwrite(
     uint32_t destination, // Index of destination register
     uint32_t offset)
 {
+  printf("===== PHYSICAL MEMORY AFTER WRITING =====\n");
+  
+  int val = __write(proc, 0, destination, offset, data);
 #ifdef IODUMP
   printf("write region=%d offset=%d value=%d\n", destination, offset, data);
 #ifdef PAGETBL_DUMP
@@ -415,7 +439,7 @@ int libwrite(
   MEMPHY_dump(proc->mram);
 #endif
 
-  return __write(proc, 0, destination, offset, data);
+  return val;
 }
 
 /*free_pcb_memphy - collect all memphy of pcb
