@@ -54,12 +54,13 @@ struct pcb_t * get_mlq_proc(void) {
 	 * Remember to use lock to protect the queue.
 	 * */
 	pthread_mutex_lock(&queue_lock);
-    static int current_prio = 0;
-    static int current_slot = -1;
-    for (int turn = 0; turn < MAX_PRIO; turn++) {
+    int current_prio = 0;
+    int current_slot = -1;
+	int turn = MAX_PRIO;
+	while(turn--){
         if (!empty(&mlq_ready_queue[current_prio])) {
             if (current_slot < 0) {
-                current_slot = slot[current_prio];  // slot[prio] = MAX_PRIO - prio
+                current_slot = slot[current_prio]; 
             }
             proc = dequeue(&mlq_ready_queue[current_prio]);
             current_slot--;
@@ -68,7 +69,6 @@ struct pcb_t * get_mlq_proc(void) {
                 current_prio = (current_prio + 1) % MAX_PRIO;
                 current_slot = -1;
             }
-
             break;
         }
         current_prio = (current_prio + 1) % MAX_PRIO;
