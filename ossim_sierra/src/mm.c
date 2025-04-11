@@ -145,8 +145,7 @@ int alloc_pages_range(struct pcb_t *caller, int req_pgnum,
     /* TODO: allocate the page
      */
     if (MEMPHY_get_freefp(caller->mram, &fpn) == 0) {
-      newfp_str =
-          (struct framephy_struct *)malloc(sizeof(struct framephy_struct));
+      newfp_str = (struct framephy_struct *)malloc(sizeof(struct framephy_struct));
 
       newfp_str->fpn = fpn;
       newfp_str->fp_next = *frm_lst;
@@ -340,7 +339,7 @@ int print_list_rg(struct vm_rg_struct *irg) {
   if (rg == NULL) {
     printf("NULL list\n");
     return -1;
-  }
+  } 
   printf("\n");
   while (rg != NULL) {
     printf("rg[%ld->%ld]\n", rg->rg_start, rg->rg_end);
@@ -405,6 +404,14 @@ int print_pgtbl(struct pcb_t *caller, uint32_t start, uint32_t end) {
 
   for (pgit = pgn_start; pgit < pgn_end; pgit++) {
     printf("%08ld: %08x\n", pgit * sizeof(uint32_t), caller->mm->pgd[pgit]);
+  }
+
+  for (pgit = pgn_start; pgit < pgn_end; pgit++) {
+    uint32_t pte = caller->mm->pgd[pgit];
+    if (PAGING_PAGE_PRESENT(pte)) {
+      int fpn = PAGING_FPN(pte);
+      printf("Page Number: %d -> Frame Number: %d\n", pgit, fpn);
+    }
   }
 
   return 0;
