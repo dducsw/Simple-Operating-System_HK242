@@ -184,7 +184,10 @@ int liballoc(struct pcb_t *proc, uint32_t size, uint32_t reg_index)
   printf("===== PHYSICAL MEMORY AFTER ALLOCATION =====\n");
   printf("PID=%d - Region=%d - Address=%08x - Size=%d byte\n", proc->pid, reg_index, addr, size);
   
-  print_pgtbl(proc, 0, 1024);
+  if (reg_index == 0){
+    print_pgtbl(proc, 0, 512);
+  }
+  else print_pgtbl(proc, 0, 1024);
   
   printf("================================================================\n");
   

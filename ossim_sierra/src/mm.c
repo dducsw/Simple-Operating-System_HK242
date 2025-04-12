@@ -106,11 +106,17 @@ int vmap_page_range(
   for (pgit = 0; pgit < pgnum; pgit++) {
     if (fpit == NULL)
       break; // runout of frame
-    
+
     int pgn_dest = PAGING_PGN(addr) + pgit;
-    uint32_t pte = 0;
+    uint32_t pte = caller->mm->pgd[pgn_dest];
+    // Clear related bits before initialize
+    pte &= ~(PAGING_PTE_FPN_MASK | PAGING_PTE_EMPTY01_MASK |
+             PAGING_PTE_EMPTY02_MASK | PAGING_PTE_PRESENT_MASK |
+             PAGING_PTE_SWAPPED_MASK);
+    // Initialize FPN bits
+    pte |= fpit->fpn & PAGING_PTE_FPN_MASK;
     pte |= PAGING_PTE_PRESENT_MASK;
-    pte |= (fpit->fpn << PAGING_PTE_FPN_LOBIT) & PAGING_PTE_FPN_MASK;
+
     caller->mm->pgd[pgn_dest] = pte;
     enlist_pgn_node(&caller->mm->fifo_pgn, pgn + pgit); // dd
     fpit = fpit->fp_next;
@@ -118,7 +124,6 @@ int vmap_page_range(
 
   /* Tracking for later page replacement activities (if needed)
    * Enqueue new usage page */
-  
 
   return 0;
 }
@@ -133,29 +138,43 @@ int vmap_page_range(
 int alloc_pages_range(struct pcb_t *caller, int req_pgnum,
                       struct framephy_struct **frm_lst) {
   int pgit, fpn;
-  struct framephy_struct *newfp_str = NULL, *last = NULL;
+  struct framephy_struct *newfp_str = NULL, *head = NULL, *tail = NULL;
 
   /* TODO: allocate the page
   //caller-> ...
   //frm_lst-> ...
   */
   *frm_lst = NULL;
-          
+
   for (pgit = 0; pgit < req_pgnum; pgit++) {
     /* TODO: allocate the page
      */
     if (MEMPHY_get_freefp(caller->mram, &fpn) == 0) {
-      newfp_str = (struct framephy_struct *)malloc(sizeof(struct framephy_struct));
+      newfp_str =
+          (struct framephy_struct *)malloc(sizeof(struct framephy_struct));
+
+      if (newfp_str == NULL) {
+        perror("malloc() framephy_struct* newfp_str failed at "
+               "alloc_pages_range()");
+        // Free allocated frames
+        while (*frm_lst) {
+          struct framephy_struct *tmp_fp = *frm_lst;
+          *frm_lst = (*frm_lst)->fp_next;
+          free(tmp_fp);
+        }
+        return -1;
+      }
 
       newfp_str->fpn = fpn;
-      newfp_str->fp_next = *frm_lst;
-      if (*frm_lst == NULL) {
-        *frm_lst = newfp_str;
+      newfp_str->fp_next = NULL;
+      if (head == NULL) {
+        head = newfp_str;
+        tail = newfp_str;
+        *frm_lst = head;
       } else {
-        last->fp_next = newfp_str;
+        tail->fp_next = newfp_str;
+        tail = tail->fp_next;
       }
-      last = newfp_str;
-
       // Add the frame to the used frame list
       newfp_str->fp_next = caller->mram->used_fp_list;
       caller->mram->used_fp_list = newfp_str;
@@ -339,7 +358,7 @@ int print_list_rg(struct vm_rg_struct *irg) {
   if (rg == NULL) {
     printf("NULL list\n");
     return -1;
-  } 
+  }
   printf("\n");
   while (rg != NULL) {
     printf("rg[%ld->%ld]\n", rg->rg_start, rg->rg_end);
@@ -382,7 +401,8 @@ int print_list_pgn(struct pgn_t *ip) {
 }
 
 int print_pgtbl(struct pcb_t *caller, uint32_t start, uint32_t end) {
-  if (caller == NULL || caller->mm == NULL) return -1;
+  if (caller == NULL || caller->mm == NULL)
+    return -1;
 
   int pgn_start, pgn_end;
   int pgit;
