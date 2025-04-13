@@ -150,7 +150,7 @@ int __free(struct pcb_t *caller, int vmaid, int rgid)
     return -1;
   // Note: Consider the malloc to rgnode
   struct vm_rg_struct *rgnode = get_symrg_byid(caller->mm, rgid);
-  if (rgnode == NULL || rgnode->rg_start == 0) return -1;
+  if (rgnode == NULL)return -1;
 
   /* TODO: Manage the collect freed region to freerg_list */
   struct vm_rg_struct *freerg = (struct vm_rg_struct *)malloc(sizeof(struct vm_rg_struct));
