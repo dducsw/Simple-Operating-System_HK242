@@ -9,6 +9,7 @@
 #include <stdlib.h>
 
 #include "mm.h"
+#include "os-mm.h"
 #include "string.h"
 
 /*get_vma_by_num - get vm area by numID
@@ -17,8 +18,9 @@
  *
  */
 struct vm_area_struct *get_vma_by_num(struct mm_struct *mm, int vmaid) {
-  if (mm == NULL) return NULL;
-  
+  if (mm == NULL)
+    return NULL;
+
   struct vm_area_struct *pvma = mm->mmap;
   if (mm->mmap == NULL)
     return NULL;
@@ -60,7 +62,7 @@ struct vm_rg_struct *get_vm_area_node_at_brk(struct pcb_t *caller, int vmaid,
 
   newrg = malloc(sizeof(struct vm_rg_struct));
   int start_address = cur_vma->sbrk;
-  int end_address = start_address + alignedsz;
+  int end_address = start_address + size;
 
   /* TODO: update the newrg boundary
   // newrg->rg_start = ...
@@ -84,10 +86,13 @@ int validate_overlap_vm_area(struct pcb_t *caller, int vmaid, int vmastart,
   struct vm_area_struct *vma = caller->mm->mmap;
 
   /* TODO validate the planned memory area is not overlapped */
+  if (caller == NULL)
+    return -1;
+  struct vm_area_struct *cur_vma = get_vma_by_num(caller->mm, vmaid);
   while (vma != NULL) {
     if (vma->vm_id != vmaid) {
-      if (vmaend > vma->vm_start && vmastart < vma->vm_end) {
-        return -1; // memory area overlapped
+      if (vmaend > vma->vm_start && vmastart < vma->vm_end && vma != cur_vma) {
+        return 1; // memory area overlapped
       }
     }
     vma = vma->vm_next;
@@ -119,16 +124,14 @@ int inc_vma_limit(struct pcb_t *caller, int vmaid, int inc_sz) {
   /* TODO: Obtain the new vm area based on vmaid */
   // cur_vma->vm_end...
   //  inc_limit_ret...
-  cur_vma->vm_end = area->rg_end;
+  cur_vma->vm_end += inc_sz;
+  cur_vma->sbrk += inc_sz;
 
   if (vm_map_ram(caller, area->rg_start, area->rg_end, old_end, incnumpage,
                  newrg) < 0) {
-    free(newrg);
-    free(area);
     return -1; /* Map the memory to MEMRAM */
   }
 
-  free(area);
   return 0;
 }
 
