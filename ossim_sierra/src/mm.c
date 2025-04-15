@@ -89,6 +89,7 @@ int vmap_page_range(
 {                                   // no guarantee all given pages are mapped
   struct framephy_struct *fpit = frames;
   int pgit = 0;
+  // int fpn;
   int pgn = PAGING_PGN(addr);
 
   /* TODO: update the rg_end and rg_start of ret_rg
@@ -97,7 +98,7 @@ int vmap_page_range(
   //ret_rg->vmaid = ...
   */
   ret_rg->rg_start = addr;
-  ret_rg->rg_end = addr + pgnum * PAGING_PAGESZ - 1; // end inclusively -> -1
+  ret_rg->rg_end = addr ; // + pgnum * PAGING_PAGESZ - 1; // end inclusively -> -1
 
   /* TODO map range of frame to address space
    *      [addr to addr + pgnum*PAGING_PAGESZ
@@ -107,17 +108,22 @@ int vmap_page_range(
     if (fpit == NULL)
       break; // runout of frame
 
+    // fpn = fpit->fpn;
     int pgn_dest = PAGING_PGN((addr + pgit * PAGING_PAGESZ));
     uint32_t pte = caller->mm->pgd[pgn_dest];
     pte_set_fpn(&pte, fpit->fpn);
 
     caller->mm->pgd[pgn_dest] = pte;
     fpit = fpit->fp_next;
+    // enlist_pgn_node(&caller->mm->fifo_pgn, pgn_dest);
   }
 
   /* Tracking for later page replacement activities (if needed)
    * Enqueue new usage page */
-  enlist_pgn_node(&caller->mm->fifo_pgn, pgn + pgit);
+  for (pgit = 0; pgit < pgnum; pgit++) {
+    pgn = PAGING_PGN((addr + pgit * PAGING_PAGESZ));
+    enlist_pgn_node(&caller->mm->fifo_pgn, pgn);
+  }
 
   return 0;
 }
@@ -167,12 +173,12 @@ int alloc_pages_range(struct pcb_t *caller, int req_pgnum,
       int victim_pgn;
       find_victim_page(caller->mm, &victim_pgn);
       uint32_t victim_pte = caller->mm->pgd[victim_pgn];
-      int victim_fpn = PAGING_FPN(victim_pte);
+      int victim_fpn = PAGING_PTE_FPN(victim_pte);
       // Find a free frame to swap
       int swap_fpn;
       MEMPHY_get_freefp(caller->active_mswp, &swap_fpn);
       // Swap
-      __swap_cp_page(caller->mram, victim_pgn, caller->active_mswp, swap_fpn);
+      __swap_cp_page(caller->mram, victim_fpn, caller->active_mswp, swap_fpn);
       pte_set_swap(&caller->mm->pgd[victim_pgn], 0, swap_fpn);
       // Return the victim frame to the frm_lst
       fpn = victim_fpn;
