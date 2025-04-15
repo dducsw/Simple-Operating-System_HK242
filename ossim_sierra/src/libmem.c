@@ -150,7 +150,7 @@ int __free(struct pcb_t *caller, int vmaid, int rgid)
     return -1;
   // Note: Consider the malloc to rgnode
   struct vm_rg_struct *rgnode = get_symrg_byid(caller->mm, rgid);
-  if (rgnode == NULL || rgnode->rg_start == 0) return -1;
+  if (rgnode == NULL)return -1;
 
   /* TODO: Manage the collect freed region to freerg_list */
   struct vm_rg_struct *freerg = (struct vm_rg_struct *)malloc(sizeof(struct vm_rg_struct));
@@ -184,10 +184,7 @@ int liballoc(struct pcb_t *proc, uint32_t size, uint32_t reg_index)
   printf("===== PHYSICAL MEMORY AFTER ALLOCATION =====\n");
   printf("PID=%d - Region=%d - Address=%08x - Size=%d byte\n", proc->pid, reg_index, addr, size);
   
-  if (reg_index == 0){
-    print_pgtbl(proc, 0, 512);
-  }
-  else print_pgtbl(proc, 0, 1024);
+  print_pgtbl(proc, 0, proc->mm->mmap->vm_end);
   
   printf("================================================================\n");
   
@@ -212,7 +209,7 @@ int libfree(struct pcb_t *proc, uint32_t reg_index)
   int result = __free(proc, 0, reg_index);
   
   
-  print_pgtbl(proc, 0, 1024);
+  print_pgtbl(proc, 0, proc->mm->mmap->vm_end);
   
   printf("================================================================\n");
   
