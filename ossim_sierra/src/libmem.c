@@ -70,13 +70,15 @@ struct vm_rg_struct *get_symrg_byid(struct mm_struct *mm, int rgid)
  */
 int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr)
 {
-  // pthread_mutex is used to avoid race conditions
+  // pthread_mutex is used to prevent race conditions
+  pthread_mutex_lock(&mmvm_lock);
   if (caller == NULL) return -1;
   struct vm_rg_struct rgnode; 
-  // rgnode.vmaid = vmaid; // commit the vmaid 
-
+  
+  /* try to find free region in current VM area */
   if (get_free_vmrg_area(caller, vmaid, size, &rgnode) == 0)
   {
+    /* if found, update the symbol region table with the allocated rg */
     caller->mm->symrgtbl[rgid].rg_start = rgnode.rg_start;
     caller->mm->symrgtbl[rgid].rg_end = rgnode.rg_end;
  
@@ -85,15 +87,15 @@ int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr
     return 0;
   }
   /* TODO get_free_vmrg_area FAILED handle the region management (Fig.6)*/
+  /* Attempt to increate limit to get space */
   struct vm_area_struct *cur_vma = get_vma_by_num(caller->mm, vmaid); 
   if (cur_vma == NULL) { /* TODO retrive current vma if needed, current comment out due to compiler redundant warning*/
     pthread_mutex_unlock(&mmvm_lock);
     return -1;
   }
-  /*Attempt to increate limit to get space */
+  
   int inc_sz = PAGING_PAGE_ALIGNSZ(size);
-  // int inc_limit_ret;
-
+  
   /* TODO retrive old_sbrk if needed, current comment out due to compiler redundant warning*/
   int old_sbrk = cur_vma->sbrk;
 
@@ -113,13 +115,14 @@ int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr
   
   *alloc_addr = old_sbrk;
 
-  // Update sbrk
-  cur_vma->sbrk = old_sbrk + inc_sz;
+  /* Update sbrk */ 
+  cur_vma->sbrk = old_sbrk + size;
 
-  if (old_sbrk + size < cur_vma->sbrk) {
+  /* If there is left overspace after allocation, add it to the free rg list */
+  if (old_sbrk + size < cur_vma->sbrk + inc_sz) {
     struct vm_rg_struct *new_free_region = malloc(sizeof(struct vm_rg_struct));
     new_free_region->rg_start = old_sbrk + size;
-    new_free_region->rg_end = cur_vma->sbrk;
+    new_free_region->rg_end = old_sbrk + inc_sz;
     new_free_region->rg_next = cur_vma->vm_freerg_list;
     cur_vma->vm_freerg_list = new_free_region;
   }
@@ -139,16 +142,18 @@ int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr
  */
 int __free(struct pcb_t *caller, int vmaid, int rgid)
 {
-  
-  
   // Dummy initialization for avoding compiler dummay warning
   // in incompleted TODO code rgnode will overwrite through implementing
   // the manipulation of rgid later
+
+  // Check if the caller or its memory is NULL
   if (caller == NULL || caller->mm == NULL) return -1;
 
+  // Check if the rg id is out of vaild range 
   if(rgid < 0 || rgid > PAGING_MAX_SYMTBL_SZ)
     return -1;
-  // Note: Consider the malloc to rgnode
+  
+  // Get the rg node by rgid from symbol table
   struct vm_rg_struct *rgnode = get_symrg_byid(caller->mm, rgid);
   if (rgnode == NULL)return -1;
 
@@ -158,6 +163,7 @@ int __free(struct pcb_t *caller, int vmaid, int rgid)
   freerg->rg_end = rgnode->rg_end;
   freerg->rg_next = NULL;
 
+  // clear the rgnode in symbol table
   rgnode->rg_start = 0;
   rgnode->rg_end = 0;
    
@@ -182,9 +188,15 @@ int liballoc(struct pcb_t *proc, uint32_t size, uint32_t reg_index)
   int result = __alloc(proc, 0, reg_index, size, &addr);
 
   printf("===== PHYSICAL MEMORY AFTER ALLOCATION =====\n");
-  printf("PID=%d - Region=%d - Address=%08x - Size=%d byte\n", proc->pid, reg_index, addr, size);
+  printf("PID=%d - Region=%d - rg_start: %lu - rg_end: %lu - Address=%08x - Size=%d byte\n", proc->pid, reg_index,
+  proc->mm->symrgtbl[reg_index].rg_start, proc->mm->symrgtbl[reg_index].rg_end, addr, size);
   
   print_pgtbl(proc, 0, proc->mm->mmap->vm_end);
+
+  printf("Current sbrk: %lu\n", proc->mm->mmap->sbrk);
+  print_list_vma(proc->mm->mmap);
+  printf("===== FREE REGION LIST =====\n");
+  print_list_rg(proc->mm->mmap->vm_freerg_list);
   
   printf("================================================================\n");
   
@@ -210,6 +222,11 @@ int libfree(struct pcb_t *proc, uint32_t reg_index)
   
   
   print_pgtbl(proc, 0, proc->mm->mmap->vm_end);
+
+  // printf("Current sbrk: %lu\n", proc->mm->mmap->sbrk);
+  // print_list_vma(proc->mm->mmap);
+  printf("===== FREE REGION LIST =====\n");
+  print_list_rg(proc->mm->mmap->vm_freerg_list);
   
   printf("================================================================\n");
   
