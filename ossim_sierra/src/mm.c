@@ -358,7 +358,8 @@ int print_list_rg(struct vm_rg_struct *irg) {
   }
   printf("\n");
   while (rg != NULL) {
-    printf("rg[%ld->%ld]\n", rg->rg_start, rg->rg_end);
+    if (rg->rg_start < rg->rg_end)
+      printf("rg[%ld->%ld]\n", rg->rg_start, rg->rg_end);
     rg = rg->rg_next;
   }
   printf("\n");
